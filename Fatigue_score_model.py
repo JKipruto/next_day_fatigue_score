@@ -101,6 +101,20 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
         "Xgboost": XGBRegressor()
     }
 
+    voting_models = [
+        ("Decision_tree", DecisionTreeRegressor(max_depth=10, max_leaf_nodes=20)),
+        ("SVR", SVR()),
+        ("KNN", KNeighborsRegressor(n_neighbors=10))
+    ]
 
+    bag_adaboost_estimators = [DecisionTreeRegressor(
+        max_depth=10, max_leaf_nodes=20), SVR(), KNeighborsRegressor(n_neighbors=10)]
+    number_est = np.arange(1, 100, 1)
+    alphas = (10.0**np.array([0.0, 0.5, 1.0, 1.5,
+              2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]))
+    depth = np.arange(10, 100, 1)
+    leaf_nodes = np.arange(2, 50, 1)
+    neighbors = np.arange(2, 20, 1)
+    # add more parameters of the models and understand XGboost and its parameters
 else:
     print("File unavailable")
