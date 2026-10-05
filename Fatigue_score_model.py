@@ -24,9 +24,9 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
 
     numeric_columns = ["age", "bedtime_phone_minutes", "screen_brightness_pct", "blue_light_filter_active",
                        "caffeine_post_5pm_mg", "physical_activity_min", "sleep_latency_min", "total_sleep_hours", "deep_sleep_pct",
-                       "rem_sleep_pct", "morning_alarm_snoozes"]
+                       "rem_sleep_pct", "morning_alarm_snoozes", "next_day_fatigue_score"]
 
-    for col in numeric_columns:
+    for col in numeric_columns[:-1]:
         plt.figure(figsize=(12, 12))
         plt.title(f"Score againt {col} scatterplot")
         sns.scatterplot(x="next_day_fatigue_score", y=col, data=bssd_df)
@@ -36,14 +36,25 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
 
     bar_columns = bssd_df.drop(numeric_columns, axis=1)
     print(bar_columns.columns)
-    bar_x = bar_columns.drop("next_day_fatigue_score", axis=1)
-    for index in bar_x.index:
+    for column in bar_columns:
         plt.figure(figsize=(12, 12))
-        plt.title("Next day fatigue score against Catergorical Data")
-        sns.countplot(x=index, data=bar_columns)
-        plt.xlabel("Features")
-        plt.ylabel("next_day_fatigue_score")
+        plt.title(f"{column} countplot")
+        sns.countplot(x=column, data=bar_columns)
+        plt.xlabel(f"{column}")
         plt.show()
+
+    plt.figure(figsize=(12, 12))
+    plt.title("next_day_fatigue_score histogram")
+    sns.histplot(x="next_day_fatigue_score", data=bssd_df, kde=True)
+    plt.xlabel("next day fatigue score")
+    plt.ylabel("Frequency")
+    plt.show()
+
+    plt.figure(figsize=(12, 12))
+    plt.title("Correlation Heatmap")
+    sns.heatmap(bssd_df[numeric_columns].corr(), annot=True, cmap="coolwarm",
+                fmt=".4f")
+    plt.show()
 
 else:
     print("File unavailable")
