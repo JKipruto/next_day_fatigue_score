@@ -78,7 +78,7 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
     processor = ColumnTransformer(
         transformers=[
             ("cat_data", OneHotEncoder(handle_unknown="ignore",
-             sparse_output=False), bar_columns.columns.to_list),
+             sparse_output=False, drop="first"), bar_columns.columns.to_list),
             ("numeric_data", StandardScaler(), numeric_columns[:-1])
         ],
         remainder=numeric_columns[-1]
@@ -86,6 +86,21 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
 
     x_train_scaled = processor.fit_transform(x_train)
     x_test = processor.transform(x_test)
+
+    models = {
+        "Linear_reg": LinearRegression(),
+        "Lasso": Lasso(),
+        "Ridge": Ridge(),
+        "Decision_tree": DecisionTreeRegressor(),
+        "SVR": SVR(),
+        "KNN": KNeighborsRegressor(),
+        "Random_forest": RandomForestRegressor(),
+        "Adaboost": AdaBoostRegressor(),
+        "Voting": VotingRegressor(),
+        "Bagging": BaggingRegressor(),
+        "Xgboost": XGBRegressor()
+    }
+
 
 else:
     print("File unavailable")
