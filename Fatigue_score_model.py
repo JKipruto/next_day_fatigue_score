@@ -28,6 +28,8 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
     non_binary_sex = conn.sql(
         """select * from'bedtime_screentime_sleep_debt.csv' where gender not in ('Male','Female')""").df()
 
+    conn.commit()
+
     print(bssd_df.isnull().sum())
     print(non_binary_sex.count())
     print(bssd_df.isna().sum())
@@ -109,12 +111,46 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
 
     bag_adaboost_estimators = [DecisionTreeRegressor(
         max_depth=10, max_leaf_nodes=20), SVR(), KNeighborsRegressor(n_neighbors=10)]
+    iterations = np.arange(200, 10050, 50)
     number_est = np.arange(1, 100, 1)
     alphas = (10.0**np.array([0.0, 0.5, 1.0, 1.5,
               2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]))
     depth = np.arange(10, 100, 1)
     leaf_nodes = np.arange(2, 50, 1)
-    neighbors = np.arange(2, 20, 1)
+
+    lasso_parameter = {
+        "alpha": alphas,
+        "max_iter": iterations
+    }
+    ridge_parameter = {
+        "alpha": alphas,
+        "max_iter": iterations
+    }
+    dtree_parameters = {
+        "max_depth": depth,
+        "max_leaf_node": leaf_nodes
+    }
+    svr_parameters = {
+        "kernel": ["linear", "poly", "rbf"],
+        "epsilon": np.arange(0.0, 1.0, 0.05),
+        "C": np.logspace(-2, 2, 10)
+    }
+    knn_parameter = {
+        "n_neighbors": np.arange(2, 20, 1)
+    }
+    rf_parameters = {
+        "max_depth": depth,
+        "n_estimators": number_est,
+        "max_leaf_node": leaf_nodes
+    }
+    adaboost_parameters = {
+        "estimator": bag_adaboost_estimators,
+        "n_estimators": number_est
+    }
+    bagg_parameters = {
+        "estimator": bag_adaboost_estimators,
+        "n_estimators": number_est
+    }
     # add more parameters of the models and understand XGboost and its parameters
 else:
     print("File unavailable")
