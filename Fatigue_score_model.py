@@ -24,7 +24,7 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
     print("File Available")
     bssd_df = conn.sql("""select age,gender,occupation_type,chronotype,bedtime_phone_minutes,primary_bedtime_app,
     screen_brightness_pct,blue_light_filter_active,caffeine_post_5pm_mg,physical_activity_min,sleep_latency_min,total_sleep_hours,deep_sleep_pct,rem_sleep_pct,
-    morning_alarm_snoozes,next_day_fatigue_score,sleep_debt_category from 'bedtime_screentime_sleep_debt.csv'""").df()
+    morning_alarm_snoozes,next_day_fatigue_score from 'bedtime_screentime_sleep_debt.csv'""").df()
     non_binary_sex = conn.sql(
         """select * from'bedtime_screentime_sleep_debt.csv' where gender not in ('Male','Female')""").df()
 
@@ -98,7 +98,7 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
         "Adaboost": AdaBoostRegressor(),
         "Voting": VotingRegressor(),
         "Bagging": BaggingRegressor(),
-        "Xgboost": XGBRegressor()
+        # "Xgboost": XGBRegressor()
     }
 
     voting_models = [
