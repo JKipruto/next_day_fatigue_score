@@ -111,7 +111,7 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
     bag_adaboost_estimators = [DecisionTreeRegressor(
         max_depth=10, max_leaf_nodes=20), SVR(), KNeighborsRegressor(n_neighbors=10)]
     iterations = np.arange(200, 10050, 50)
-    number_est = np.arange(1, 100, 1)
+    number_est = np.arange(1, 50, 1)
     alphas = (10.0**np.array([0.0, 0.5, 1.0, 1.5,
               2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]))
     depth = np.arange(10, 100, 1)
@@ -151,5 +151,116 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
         "n_estimators": number_est
     }
     # add more parameters of the models and understand XGboost and its parameters
+    tuned_values = {}
+    tuned_scores = {}
+    for name, model in models.items():
+        if name == "Lasso":
+            Lasso_gridsearch = GridSearchCV(
+                model,
+                lasso_parameter,
+                scoring="neg_mean_squared_error",
+                cv=5
+            )
+            Lasso_gridsearch.fit(x_train_scaled, y_train)
+            tuned_values[name] = Lasso_gridsearch.best_params_
+            tuned_scores[name] = Lasso_gridsearch.best_score_
+
+        elif name == "Ridge":
+            ridge_gridsearch = GridSearchCV(
+                model,
+                ridge_parameter,
+                scoring="neg_mean_squared",
+                cv=5
+            )
+            ridge_gridsearch.fit(x_train_scaled, y_train)
+            tuned_values[name] = ridge_gridsearch.best_params_
+            tuned_scores[name] = ridge_gridsearch.best_score_
+
+        elif name == "KNN":
+            knn_gridsearch = GridSearchCV(
+                model,
+                knn_parameter,
+                cv=5,
+                scoring="neg_mean_squared_error"
+            )
+            knn_gridsearch.fit(x_train_scaled, y_train)
+            tuned_values[name] = knn_gridsearch.best_params_
+            tuned_scores[name] = knn_gridsearch.best_score_
+
+        elif name == "Decision_tree":
+            des_tree_randomsearch = RandomizedSearchCV(
+                model,
+                dtree_parameters,
+                n_iter=20,
+                random_state=42,
+                scoring="neg_mean_squared_error"
+            )
+            des_tree_randomsearch.fit(x_train_scaled, y_train)
+            tuned_values[name] = des_tree_randomsearch.best_params_
+            tuned_scores[name] = des_tree_randomsearch.best_score_
+
+        elif name == "SVR":  # I create a dictionary for all the model's parameters
+            svr_randomsearch = RandomizedSearchCV(
+                model,
+                svr_parameters,
+                random_state=42,
+                n_iter=20,
+                scoring="neg_mean_squared_error"
+            )
+            svr_randomsearch.fit(x_train_scaled, y_train)
+            tuned_values[name] = svr_randomsearch.best_params_
+            tuned_scores[name] = svr_randomsearch.best_score_
+
+        elif name == "Random_forest":
+            rf_randomsearch = RandomizedSearchCV(
+                model,
+                rf_parameters,
+                random_state=42,
+                n_iter=20,
+                scoring="neg_mean_squared_error"
+            )
+            rf_randomsearch.fit(x_train_scaled, y_train)
+            tuned_values[name] = rf_randomsearch.best_params_
+            tuned_scores[name] = rf_randomsearch.best_score_
+
+        elif name == "Adaboost":
+            adaboost_randomsearch = RandomizedSearchCV(
+                model,
+                adaboost_parameters,
+                random_state=42,
+                cv=5,
+                scoring="neg_mean_squared_error"
+            )
+            adaboost_randomsearch.fit(x_train_scaled, y_train)
+            tuned_values[name] = adaboost_randomsearch.best_params_
+            tuned_scores[name] = adaboost_randomsearch.best_score_
+
+        elif name == "Bagging":
+            bag_randomsearch = RandomizedSearchCV(
+                model,
+                bagg_parameters,
+                random_state=42,
+                cv=5,
+                scoring="neg_mean_squared_error"
+            )
+            bag_randomsearch.fit(x_train_scaled, y_train)
+            tuned_values[name] = bag_randomsearch.best_params_
+            tuned_scores[name] = bag_randomsearch.best_score_
+
+        else:
+            print(f"{name} don't have parameters to be tuned")
+
+    tuned_values_df = pd.DataFrame(tuned_values)
+    tuned_scores_df = pd.DataFrame(tuned_scores)
+
+    print("Parameters' Values")
+    print("========")
+    print(tuned_values_df)
+    print("========")
+    print("Parameters scores per model")
+    print("========")
+    print(tuned_scores_df)
+    print("========")
+
 else:
     print("File unavailable")
