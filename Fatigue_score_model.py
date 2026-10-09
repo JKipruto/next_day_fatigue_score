@@ -87,7 +87,7 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
     )
 
     x_train_scaled = processor.fit_transform(x_train)
-    x_test = processor.transform(x_test)
+    x_test_scaled = processor.transform(x_test)
     voting_models = [
         ("Decision_tree", DecisionTreeRegressor(max_depth=10, max_leaf_nodes=20)),
         ("SVR", SVR()),
@@ -127,7 +127,7 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
     }
     dtree_parameters = {
         "max_depth": depth,
-        "max_leaf_node": leaf_nodes
+        "max_leaf_nodes": leaf_nodes
     }
     svr_parameters = {
         "kernel": ["linear", "poly", "rbf"],
@@ -140,7 +140,7 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
     rf_parameters = {
         "max_depth": depth,
         "n_estimators": number_est,
-        "max_leaf_node": leaf_nodes
+        "max_leaf_nodes": leaf_nodes
     }
     adaboost_parameters = {
         "estimator": bag_adaboost_estimators,
@@ -169,7 +169,7 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
             ridge_gridsearch = GridSearchCV(
                 model,
                 ridge_parameter,
-                scoring="neg_mean_squared",
+                scoring="neg_mean_squared_error",
                 cv=5
             )
             ridge_gridsearch.fit(x_train_scaled, y_train)
@@ -248,7 +248,7 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
             tuned_scores[name] = bag_randomsearch.best_score_
 
         else:
-            print(f"{name} don't have parameters to be tuned")
+            print(f"The models don't have parameters to be tuned")
 
     tuned_values_df = pd.DataFrame(tuned_values)
     tuned_scores_df = pd.DataFrame(tuned_scores)
@@ -261,6 +261,35 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
     print("========")
     print(tuned_scores_df)
     print("========")
+
+    tuned_model = {}
+    tuned_model["Linear reg"] = LinearRegression()
+    tuned_model["Lasso"] = Lasso_gridsearch.best_params_
+    tuned_model["Ridge"] = ridge_gridsearch.best_params_
+    tuned_model["knn"] = knn_gridsearch.best_params_
+    tuned_model["Decision Tree"] = des_tree_randomsearch.best_params_
+    tuned_model["SVR"] = svr_randomsearch.best_params_
+    tuned_model["Random Forest"] = rf_randomsearch.best_params_
+    tuned_model["Adaboost"] = adaboost_randomsearch.best_params_
+    tuned_model["Bag_reg"] = bag_randomsearch.best_params_
+    tuned_model["Voting"] = VotingRegressor(estimators=voting_models)
+
+    metrics_list = []
+    for name, model in tuned_model.items():
+        model.fit(x_train_scaled, y_train)
+        model_pred = model.predict(x_test_scaled)
+        metrics_list.append(
+            {
+                "name": model,
+                "MAE": mean_absolute_error(y_test, model_pred),
+                "MSE": mean_squared_error(y_test, model_pred),
+                "R2_score": r2_score(y_test, model_pred),
+                "RMSE": root_mean_squared_error(y_test, model_pred)
+            }
+        )
+
+    metrics_df = pd.DataFrame(metrics_list)
+    print(metrics_df)
 
 else:
     print("File unavailable")
