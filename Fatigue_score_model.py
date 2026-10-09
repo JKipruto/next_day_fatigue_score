@@ -80,14 +80,19 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
     processor = ColumnTransformer(
         transformers=[
             ("cat_data", OneHotEncoder(handle_unknown="ignore",
-             sparse_output=False, drop="first"), bar_columns.columns.to_list),
+             sparse_output=False, drop="first"), bar_columns.columns.to_list()),
             ("numeric_data", StandardScaler(), numeric_columns[:-1])
         ],
-        remainder=numeric_columns[-1]
+        remainder='passthrough'
     )
 
     x_train_scaled = processor.fit_transform(x_train)
     x_test = processor.transform(x_test)
+    voting_models = [
+        ("Decision_tree", DecisionTreeRegressor(max_depth=10, max_leaf_nodes=20)),
+        ("SVR", SVR()),
+        ("KNN", KNeighborsRegressor(n_neighbors=10))
+    ]
 
     models = {
         "Linear_reg": LinearRegression(),
@@ -98,16 +103,10 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
         "KNN": KNeighborsRegressor(),
         "Random_forest": RandomForestRegressor(),
         "Adaboost": AdaBoostRegressor(),
-        "Voting": VotingRegressor(),
+        "Voting": VotingRegressor(estimators=voting_models),
         "Bagging": BaggingRegressor(),
         # "Xgboost": XGBRegressor()
     }
-
-    voting_models = [
-        ("Decision_tree", DecisionTreeRegressor(max_depth=10, max_leaf_nodes=20)),
-        ("SVR", SVR()),
-        ("KNN", KNeighborsRegressor(n_neighbors=10))
-    ]
 
     bag_adaboost_estimators = [DecisionTreeRegressor(
         max_depth=10, max_leaf_nodes=20), SVR(), KNeighborsRegressor(n_neighbors=10)]
