@@ -2,7 +2,7 @@ import os
 import pandas as pd
 import duckdb as db
 import numpy as np
-from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV
+from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV, cross_val_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score, root_mean_squared_error, mean_absolute_error
 from sklearn.linear_model import LinearRegression, Lasso, Ridge
@@ -12,12 +12,12 @@ from sklearn.neighbors import KNeighborsRegressor
 from sklearn.ensemble import RandomForestRegressor, VotingRegressor, AdaBoostRegressor, BaggingRegressor
 from xgboost import XGBRegressor
 from sklearn.pipeline import Pipeline
+from sklearn.dummy import DummyRegressor
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-ohecoder = OneHotEncoder()
 conn = db.connect("My_database.duckdb")
 if os.path.exists("bedtime_screentime_sleep_debt.csv"):
   # The target from my model will be next_day_fatigue_score-
@@ -27,8 +27,6 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
     morning_alarm_snoozes,next_day_fatigue_score from 'bedtime_screentime_sleep_debt.csv'""").df()
     non_binary_sex = conn.sql(
         """select * from'bedtime_screentime_sleep_debt.csv' where gender not in ('Male','Female')""").df()
-
-    conn.commit()
 
     print(bssd_df.isnull().sum())
     print(non_binary_sex.count())
@@ -67,14 +65,14 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
     plt.figure(figsize=(12, 12))
     plt.title("Correlation Heatmap")
     sns.heatmap(bssd_df[numeric_columns].corr(), annot=True, cmap="coolwarm",
-                fmt=".4f")
+                fmt=".4f", vmin=-1, vmax=1)
     plt.show()
 
     x = bssd_df.drop("next_day_fatigue_score", axis=1)
     y = bssd_df["next_day_fatigue_score"]
 
     x_train, x_test, y_train, y_test = train_test_split(
-        x, y, random_state=42, test_size=20)
+        x, y, random_state=42, test_size=0.2)
 
     numeric_columns = numeric_columns[:-1]
     processor = ColumnTransformer(
@@ -86,7 +84,11 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
         remainder='passthrough'
     )
 
-    x_train_scaled = processor.fit_transform(x_train)
+    def make_pipeline(model):
+        return Pipeline([("Prep", processor), ("model", model)])
+
+    x_train_scaled = processor.fit_transform(
+        x_train)  # I'll have to remove them
     x_test_scaled = processor.transform(x_test)
     voting_models = [
         ("Decision_tree", DecisionTreeRegressor(max_depth=10, max_leaf_nodes=20)),
@@ -108,188 +110,92 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
         # "Xgboost": XGBRegressor()
     }
 
-    bag_adaboost_estimators = [DecisionTreeRegressor(
-        max_depth=10, max_leaf_nodes=20), SVR(), KNeighborsRegressor(n_neighbors=10)]
+    RANDOM_STATE = 42
     iterations = np.arange(200, 10050, 50)
-    number_est = np.arange(1, 50, 1)
-    alphas = (10.0**np.array([0.0, 0.5, 1.0, 1.5,
-              2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0]))
-    depth = np.arange(10, 100, 1)
+    number_est = np.arange(50, 500, 10)
+    alphas = alphas = np.logspace(-3, 2, 11)
+    depth = np.arange(2, 20, 1)
     leaf_nodes = np.arange(2, 50, 1)
 
-    lasso_parameter = {
-        "alpha": alphas,
-        "max_iter": iterations
-    }
-    ridge_parameter = {
-        "alpha": alphas,
-        "max_iter": iterations
-    }
-    dtree_parameters = {
-        "max_depth": depth,
-        "max_leaf_nodes": leaf_nodes
-    }
-    svr_parameters = {
-        "kernel": ["linear", "poly", "rbf"],
-        "epsilon": np.arange(0.0, 1.0, 0.05),
-        "C": np.logspace(-2, 2, 10)
-    }
-    knn_parameter = {
-        "n_neighbors": np.arange(2, 20, 1)
-    }
-    rf_parameters = {
-        "max_depth": depth,
-        "n_estimators": number_est,
-        "max_leaf_nodes": leaf_nodes
-    }
-    adaboost_parameters = {
-        "estimator": bag_adaboost_estimators,
-        "n_estimators": number_est
-    }
-    bagg_parameters = {
-        "estimator": bag_adaboost_estimators,
-        "n_estimators": number_est
-    }
-    # add more parameters of the models and understand XGboost and its parameters
+    ada_bases = [DecisionTreeRegressor(
+        max_depth=d, random_state=42)for d in np.arange(2, 5, 1)]
+
+    bag_base = [DecisionTreeRegressor(max_depth=10, max_leaf_nodes=20, random_state=RANDOM_STATE),
+                SVR(), KNeighborsRegressor(n_neighbors=10)]
+
+    best_models = {}
     tuned_values = {}
-    tuned_scores = {}
-    for name, model in models.items():
-        if name == "Lasso":
-            Lasso_gridsearch = GridSearchCV(
-                model,
-                lasso_parameter,
-                scoring="neg_mean_squared_error",
-                cv=5
-            )
-            Lasso_gridsearch.fit(x_train_scaled, y_train)
-            tuned_values[name] = Lasso_gridsearch.best_params_
-            tuned_scores[name] = Lasso_gridsearch.best_score_
+    cv_rmse = {}
+    search_config = {
+        "Lasso": (Lasso(max_iter=10000), "grid", {"model__alpha": alphas}, None),
+        "Ridge": (Ridge(), "grid", {"model__alpha": alphas}, None),
+        "KNN": (KNeighborsRegressor(), "grid", {"model__n_neighbors": np.arange(2, 20)}, None),
+        "Decision_tree": (DecisionTreeRegressor(random_state=RANDOM_STATE), "random",
+                          {"model__max_depth": depth, "model__max_leaf_nodes": leaf_nodes}, 20),
+        "SVR": (SVR(), "random",
+                {"model__kernel": ["linear", "poly", "rbf"],
+                 "model__epsilon": np.arange(0.0, 1.0, 0.05),
+                 "model__C": np.logspace(-2, 2, 10)}, 20),
+        "Random_forest": (RandomForestRegressor(random_state=RANDOM_STATE), "random",
+                          {"model__max_depth": depth, "model__n_estimators": number_est,
+                           "model__max_leaf_nodes": leaf_nodes}, 20),
+        "Adaboost": (AdaBoostRegressor(random_state=RANDOM_STATE), "random",
+                     {"model__estimator": ada_bases, "model__n_estimators": np.arange(10, 101, 10)}, 10),
+        "Bagging": (BaggingRegressor(random_state=RANDOM_STATE), "random",
+                    {"model__estimator": bag_base, "model__n_estimators": np.arange(10, 51, 10)}, 10),
+    }
 
-        elif name == "Ridge":
-            ridge_gridsearch = GridSearchCV(
-                model,
-                ridge_parameter,
-                scoring="neg_mean_squared_error",
-                cv=5
-            )
-            ridge_gridsearch.fit(x_train_scaled, y_train)
-            tuned_values[name] = ridge_gridsearch.best_params_
-            tuned_scores[name] = ridge_gridsearch.best_score_
-
-        elif name == "KNN":
-            knn_gridsearch = GridSearchCV(
-                model,
-                knn_parameter,
-                cv=5,
-                scoring="neg_mean_squared_error"
-            )
-            knn_gridsearch.fit(x_train_scaled, y_train)
-            tuned_values[name] = knn_gridsearch.best_params_
-            tuned_scores[name] = knn_gridsearch.best_score_
-
-        elif name == "Decision_tree":
-            des_tree_randomsearch = RandomizedSearchCV(
-                model,
-                dtree_parameters,
-                n_iter=20,
-                random_state=42,
-                scoring="neg_mean_squared_error"
-            )
-            des_tree_randomsearch.fit(x_train_scaled, y_train)
-            tuned_values[name] = des_tree_randomsearch.best_params_
-            tuned_scores[name] = des_tree_randomsearch.best_score_
-
-        elif name == "SVR":  # I create a dictionary for all the model's parameters
-            svr_randomsearch = RandomizedSearchCV(
-                model,
-                svr_parameters,
-                random_state=42,
-                n_iter=20,
-                scoring="neg_mean_squared_error"
-            )
-            svr_randomsearch.fit(x_train_scaled, y_train)
-            tuned_values[name] = svr_randomsearch.best_params_
-            tuned_scores[name] = svr_randomsearch.best_score_
-
-        elif name == "Random_forest":
-            rf_randomsearch = RandomizedSearchCV(
-                model,
-                rf_parameters,
-                random_state=42,
-                n_iter=20,
-                scoring="neg_mean_squared_error"
-            )
-            rf_randomsearch.fit(x_train_scaled, y_train)
-            tuned_values[name] = rf_randomsearch.best_params_
-            tuned_scores[name] = rf_randomsearch.best_score_
-
-        elif name == "Adaboost":
-            adaboost_randomsearch = RandomizedSearchCV(
-                model,
-                adaboost_parameters,
-                random_state=42,
-                cv=5,
-                scoring="neg_mean_squared_error"
-            )
-            adaboost_randomsearch.fit(x_train_scaled, y_train)
-            tuned_values[name] = adaboost_randomsearch.best_params_
-            tuned_scores[name] = adaboost_randomsearch.best_score_
-
-        elif name == "Bagging":
-            bag_randomsearch = RandomizedSearchCV(
-                model,
-                bagg_parameters,
-                random_state=42,
-                cv=5,
-                scoring="neg_mean_squared_error"
-            )
-            bag_randomsearch.fit(x_train_scaled, y_train)
-            tuned_values[name] = bag_randomsearch.best_params_
-            tuned_scores[name] = bag_randomsearch.best_score_
-
+    for name, (model, kind, params, n_iter) in search_config.items():
+        pipe = make_pipeline(model)
+        if kind == "grid":
+            search = GridSearchCV(
+                pipe, params, scoring="neg_mean_squared_error", cv=5, n_jobs=-1)
         else:
-            print(f"The models don't have parameters to be tuned")
+            search = RandomizedSearchCV(pipe, params, n_iter=n_iter, random_state=RANDOM_STATE,
+                                        scoring="neg_mean_squared_error", cv=5, n_jobs=-1)
 
-    tuned_values_df = pd.DataFrame(tuned_values)
-    tuned_scores_df = pd.DataFrame(tuned_scores)
+        search.fit(x_train, y_train)
+        best_models[name] = search.best_estimator_
+        tuned_values[name] = search.best_params_
+        cv_rmse[name] = np.sqrt(-search.best_score_)
 
-    print("Parameters' Values")
-    print("========")
-    print(tuned_values_df)
-    print("========")
-    print("Parameters scores per model")
-    print("========")
-    print(tuned_scores_df)
-    print("========")
+    untuned = {
+        "Baseline_mean": DummyRegressor(strategy="mean"),
+        "Linear_reg": LinearRegression(),
+        "Voting": VotingRegressor(estimators=voting_models),
+    }
 
-    tuned_model = {}
-    tuned_model["Linear reg"] = LinearRegression()
-    tuned_model["Lasso"] = Lasso_gridsearch.best_params_
-    tuned_model["Ridge"] = ridge_gridsearch.best_params_
-    tuned_model["knn"] = knn_gridsearch.best_params_
-    tuned_model["Decision Tree"] = des_tree_randomsearch.best_params_
-    tuned_model["SVR"] = svr_randomsearch.best_params_
-    tuned_model["Random Forest"] = rf_randomsearch.best_params_
-    tuned_model["Adaboost"] = adaboost_randomsearch.best_params_
-    tuned_model["Bag_reg"] = bag_randomsearch.best_params_
-    tuned_model["Voting"] = VotingRegressor(estimators=voting_models)
+    for name, model in untuned.items():
+        pipe = make_pipeline(model)
+        scores = cross_val_score(pipe, x_train, y_train,
+                                 scoring="neg_mean_squared_error", cv=5, n_jobs=-1)
+        cv_rmse[name] = np.sqrt(-scores.mean())
+        best_models[name] = pipe.fit(x_train, y_train)
+
+    print("Best parameters")
+    print("========")
+    for name, p in tuned_values.items():
+        print(name, p)
+    print("========")
+    print("Cross-validation RMSE on the training set (lower is better)")
+
+    print(pd.Series(cv_rmse, name="CV_RMSE").sort_values())
+    print("========")
 
     metrics_list = []
-    for name, model in tuned_model.items():
-        model.fit(x_train_scaled, y_train)
-        model_pred = model.predict(x_test_scaled)
-        metrics_list.append(
-            {
-                "name": model,
-                "MAE": mean_absolute_error(y_test, model_pred),
-                "MSE": mean_squared_error(y_test, model_pred),
-                "R2_score": r2_score(y_test, model_pred),
-                "RMSE": root_mean_squared_error(y_test, model_pred)
-            }
-        )
+    for name, model in best_models.items():
+        model_pred = model.predict(x_test)
+        metrics_list.append({
+            "name": name,
+            "MAE": mean_absolute_error(y_test, model_pred),
+            "MSE": mean_squared_error(y_test, model_pred),
+            "RMSE": root_mean_squared_error(y_test, model_pred),
+            "R2_score": r2_score(y_test, model_pred),
+        })
 
-    metrics_df = pd.DataFrame(metrics_list)
+    metrics_df = pd.DataFrame(metrics_list).sort_values("RMSE")
     print(metrics_df)
+
 
 else:
     print("File unavailable")
