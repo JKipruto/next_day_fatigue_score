@@ -10,7 +10,6 @@ from sklearn.tree import DecisionTreeRegressor
 from sklearn.svm import SVR
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.ensemble import RandomForestRegressor, VotingRegressor, AdaBoostRegressor, BaggingRegressor
-from xgboost import XGBRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.dummy import DummyRegressor
 from sklearn.compose import ColumnTransformer
@@ -39,11 +38,12 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
 
     for col in numeric_columns[:-1]:
         plt.figure(figsize=(12, 12))
-        plt.title(f"Score againt {col} scatterplot")
-        sns.scatterplot(x="next_day_fatigue_score", y=col, data=bssd_df)
+        plt.title(f"Fatigue score againt {col} scatterplot")
+        sns.scatterplot(x=col, y="next_day_fatigue_score", data=bssd_df)
         plt.xlabel(f"{col}")
         plt.ylabel("next_day_fatigue_score")
         plt.show()
+        plt.close()
 
     # the text data and the categorical also be used in one hot encoding
     bar_columns = bssd_df.drop(numeric_columns, axis=1)
@@ -54,6 +54,7 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
         sns.countplot(x=column, data=bar_columns)
         plt.xlabel(f"{column}")
         plt.show()
+        plt.close()
 
     plt.figure(figsize=(12, 12))
     plt.title("next_day_fatigue_score histogram")
@@ -61,12 +62,14 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
     plt.xlabel("next day fatigue score")
     plt.ylabel("Frequency")
     plt.show()
+    plt.close()
 
     plt.figure(figsize=(12, 12))
     plt.title("Correlation Heatmap")
     sns.heatmap(bssd_df[numeric_columns].corr(), annot=True, cmap="coolwarm",
-                fmt=".4f", vmin=-1, vmax=1)
+                fmt=".2f", vmin=-1, vmax=1)
     plt.show()
+    plt.close()
 
     x = bssd_df.drop("next_day_fatigue_score", axis=1)
     y = bssd_df["next_day_fatigue_score"]
@@ -85,43 +88,26 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
     )
 
     def make_pipeline(model):
-        return Pipeline([("Prep", processor), ("model", model)])
+        return Pipeline([("prep", processor), ("model", model)])
 
-    x_train_scaled = processor.fit_transform(
-        x_train)  # I'll have to remove them
-    x_test_scaled = processor.transform(x_test)
     voting_models = [
-        ("Decision_tree", DecisionTreeRegressor(max_depth=10, max_leaf_nodes=20)),
+        ("Decision_tree", DecisionTreeRegressor(
+            max_depth=10, max_leaf_nodes=20, random_state=42)),
         ("SVR", SVR()),
         ("KNN", KNeighborsRegressor(n_neighbors=10))
     ]
 
-    models = {
-        "Linear_reg": LinearRegression(),
-        "Lasso": Lasso(),
-        "Ridge": Ridge(),
-        "Decision_tree": DecisionTreeRegressor(),
-        "SVR": SVR(),
-        "KNN": KNeighborsRegressor(),
-        "Random_forest": RandomForestRegressor(),
-        "Adaboost": AdaBoostRegressor(),
-        "Voting": VotingRegressor(estimators=voting_models),
-        "Bagging": BaggingRegressor(),
-        # "Xgboost": XGBRegressor()
-    }
-
     RANDOM_STATE = 42
-    iterations = np.arange(200, 10050, 50)
     number_est = np.arange(50, 500, 10)
-    alphas = alphas = np.logspace(-3, 2, 11)
+    alphas = np.logspace(-3, 2, 11)
     depth = np.arange(2, 20, 1)
     leaf_nodes = np.arange(2, 50, 1)
 
     ada_bases = [DecisionTreeRegressor(
         max_depth=d, random_state=42)for d in np.arange(2, 5, 1)]
 
-    bag_base = [DecisionTreeRegressor(max_depth=10, max_leaf_nodes=20, random_state=RANDOM_STATE),
-                SVR(), KNeighborsRegressor(n_neighbors=10)]
+    bag_base = [DecisionTreeRegressor(
+        max_depth=10, max_leaf_nodes=20, random_state=RANDOM_STATE), KNeighborsRegressor(n_neighbors=10)]
 
     best_models = {}
     tuned_values = {}
@@ -133,7 +119,7 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
         "Decision_tree": (DecisionTreeRegressor(random_state=RANDOM_STATE), "random",
                           {"model__max_depth": depth, "model__max_leaf_nodes": leaf_nodes}, 20),
         "SVR": (SVR(), "random",
-                {"model__kernel": ["linear", "poly", "rbf"],
+                {"model__kernel": ["linear", "rbf"],
                  "model__epsilon": np.arange(0.0, 1.0, 0.05),
                  "model__C": np.logspace(-2, 2, 10)}, 20),
         "Random_forest": (RandomForestRegressor(random_state=RANDOM_STATE), "random",
