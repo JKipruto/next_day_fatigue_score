@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import duckdb as db
 import numpy as np
+from sklearn.impute import SimpleImputer
 from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV, cross_val_score
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error, r2_score, root_mean_squared_error, mean_absolute_error
@@ -81,8 +82,11 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
     processor = ColumnTransformer(
         transformers=[
             ("cat_data", OneHotEncoder(handle_unknown="ignore",
-             sparse_output=False, drop="first"), bar_columns.columns.to_list()),
-            ("numeric_data", StandardScaler(), numeric_columns[:-1])
+                                       sparse_output=False, drop="first"), bar_columns.columns.to_list()),
+            ("numeric_data", Pipeline([
+                ("impute", SimpleImputer(strategy="median")),
+                ("scale", StandardScaler())
+            ]), numeric_columns)   # already trimmed, so no [:-1]
         ],
         remainder='passthrough'
     )
