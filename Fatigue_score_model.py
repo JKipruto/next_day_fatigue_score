@@ -97,9 +97,9 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
 
     voting_models = [
         ("Decision_tree", DecisionTreeRegressor(
-            max_depth=10, max_leaf_nodes=20, random_state=42)),
+            max_depth=50, max_leaf_nodes=50, random_state=42)),
         ("SVR", SVR()),
-        ("KNN", KNeighborsRegressor(n_neighbors=10))
+        ("KNN", KNeighborsRegressor(n_neighbors=20))
     ]
 
     RANDOM_STATE = 42
@@ -186,17 +186,20 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
 
     metrics_df = pd.DataFrame(metrics_list).sort_values("RMSE")
     print(metrics_df)
+    try:
+        final_pipe = Pipeline(
+            [
+                ("processor", processor),
+                ("model", SVR(kernel="rbf", epsilon=46, C=1.6681005372000592))
+            ]
+        )
 
-    final_pipe = Pipeline(
-        [
-            ("processor", processor),
-            ("model", SVR(kernel="rbf", epsilon=46, C=1.6681005372000592))
-        ]
-    )
+        final_pipe.fit(x, y)
 
-    final_pipe.fit(x, y)
+        joblib.dump(final_pipe, "Fatigue_Score_Model.pkl")
 
-    joblib.dump(final_pipe, "Fatigue_Score_Model.pkl")
+    except Exception as e:
+        print(e)
 
 else:
     print("File unavailable")
