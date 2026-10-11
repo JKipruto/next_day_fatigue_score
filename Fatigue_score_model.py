@@ -2,6 +2,7 @@ import os
 import pandas as pd
 import duckdb as db
 import numpy as np
+import joblib
 from sklearn.impute import SimpleImputer
 from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV, cross_val_score
 from sklearn.preprocessing import StandardScaler
@@ -86,7 +87,7 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
             ("numeric_data", Pipeline([
                 ("impute", SimpleImputer(strategy="median")),
                 ("scale", StandardScaler())
-            ]), numeric_columns)   # already trimmed, so no [:-1]
+            ]), numeric_columns)
         ],
         remainder='passthrough'
     )
@@ -186,6 +187,16 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
     metrics_df = pd.DataFrame(metrics_list).sort_values("RMSE")
     print(metrics_df)
 
+    final_pipe = Pipeline(
+        [
+            ("processor", processor),
+            ("model", SVR(kernel="rbf", epsilon=46, C=1.6681005372000592))
+        ]
+    )
+
+    final_pipe.fit(x, y)
+
+    joblib.dump(final_pipe, "Fatigue_Score_Model.pkl")
 
 else:
     print("File unavailable")
