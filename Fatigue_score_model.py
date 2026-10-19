@@ -21,7 +21,7 @@ import seaborn as sns
 
 conn = db.connect("My_database.duckdb")
 if os.path.exists("bedtime_screentime_sleep_debt.csv"):
-  # The target from my model will be next_day_fatigue_score-
+  # The target for my model will be next_day_fatigue_score
     print("File Available")
     bssd_df = conn.sql("""select age,gender,occupation_type,chronotype,bedtime_phone_minutes,primary_bedtime_app,
     screen_brightness_pct,blue_light_filter_active,caffeine_post_5pm_mg,physical_activity_min,sleep_latency_min,total_sleep_hours,deep_sleep_pct,rem_sleep_pct,
@@ -190,7 +190,8 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
         final_pipe = Pipeline(
             [
                 ("processor", processor),
-                ("model", SVR(kernel="rbf", epsilon=46, C=1.6681005372000592))
+                # kernel="rbf", epsilon=46, C=1.6681005372000592))
+                ("model", SVR())
             ]
         )
 
