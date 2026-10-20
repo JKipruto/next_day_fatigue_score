@@ -140,10 +140,10 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
         pipe = make_pipeline(model)
         if kind == "grid":
             search = GridSearchCV(
-                pipe, params, scoring="neg_mean_squared_error", cv=5, n_jobs=-1)
+                pipe, params, scoring="neg_mean_squared_error", cv=3, n_jobs=2, verbose=2)
         else:
             search = RandomizedSearchCV(pipe, params, n_iter=n_iter, random_state=RANDOM_STATE,
-                                        scoring="neg_mean_squared_error", cv=5, n_jobs=-1)
+                                        scoring="neg_mean_squared_error", cv=2, n_jobs=2, verbose=2)
 
         search.fit(x_train, y_train)
         best_models[name] = search.best_estimator_
@@ -190,8 +190,7 @@ if os.path.exists("bedtime_screentime_sleep_debt.csv"):
         final_pipe = Pipeline(
             [
                 ("processor", processor),
-                # kernel="rbf", epsilon=46, C=1.6681005372000592))
-                ("model", SVR())
+                ("model", SVR(kernel="rbf", epsilon=0.2, C=1.6681005372000592))
             ]
         )
 
